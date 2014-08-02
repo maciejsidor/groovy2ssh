@@ -3,7 +3,7 @@
 	<packaging>jar</packaging>
 	<groupId>com.googlecode.msidor</groupId>
 	<artifactId>groovy2ssh</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1-SNAPSHOT</version>
 
 	<name>groovy2ssh</name>
 
@@ -42,9 +42,9 @@
 	</issueManagement>
 
 	<scm>
-		<connection>scm:svn:https://groovy2ssh.googlecode.com/svn/tags/release-1.0.0</connection>
-		<developerConnection>scm:svn:https://groovy2ssh.googlecode.com/svn/tags/release-1.0.0</developerConnection>
-		<url>https://groovy2ssh.googlecode.com/svn/tags/release-1.0.0</url>
+		<connection>scm:svn:https://groovy2ssh.googlecode.com/svn/trunk/</connection>
+		<developerConnection>scm:svn:https://groovy2ssh.googlecode.com/svn/trunk/</developerConnection>
+		<url>https://groovy2ssh.googlecode.com/svn/trunk/</url>
 	</scm>
 
 	<url>https://code.google.com/p/groovy2ssh/</url>

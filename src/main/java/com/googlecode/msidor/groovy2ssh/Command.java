@@ -27,7 +27,124 @@ import org.slf4j.LoggerFactory;
 /**
  * @author Maciej SIDOR
  *
+ * <p>
  * This class allows to interact with shell via SSH connection.
+ * It is available in your groovy script as the "cmd" variable.
+ * </p>
+ * 
+ * <p>
+ * Here are some examples of how you might use it in order to interact with shell through SSH connection:
+ * </p>
+ * 
+ * <h1>Example 1</h1>
+ * In this example the script is processing character by character. 
+ * The script is blocked each time the readBuffer() is called until a single character is available in the command buffer. 
+ * <code>
+ * outputLine = '';
+ * while ((outputLine = cmd.readBuffer()) != '$')
+ * {
+ *     print outputLine;
+ * }
+ * print outputLine;
+ * 
+ * is.sendCommand("ls\n");
+ * 
+ * while ((outputLine = cmd.readBuffer()) != '$')
+ * {
+ *     print outputLine;
+ * }
+ * print outputLine;
+ * 
+ </code>
+ * <h1>Example 2</h1>
+ * In this example the script is processing line by line. 
+ * The script is blocked each time the readBuffer() is called until a full line is available in the command buffer or until no updates were made to the command buffer since the timeout specified in outputTimeOut.
+ * In the second case the unaccomplished line is returned. 
+ <code>
+ * 
+ * outputLine = "";
+ * outputCheck = false;
+ * while ((outputLine = cmd.readBufferString()) != null)
+ * {
+ *     print outputLine;
+ *     
+ *     if(outputLine.endsWith("\$ "))
+ *         outputCheck = true; 
+ * }
+ * 
+ * if(outputCheck)
+ *     cmd.sendCommand("ls\n");
+ * else
+ *     throw new Exception ("Could not execute LS");
+ *     
+ * outputLine = "";
+ * while ((outputLine = cmd.readBufferString()) != null)
+ * {
+ *     print outputLine;
+ * }
+ * 
+ </code>
+ * <h1>Example 3</h1>
+ * <p>
+ * Yet another example of line by line processing.
+ * This time, however, there is no timeout handled by Command API.
+ * If no complete line is available, the readBufferLine() returns whatever is there is the command buffer.
+ * Contrary to readBufferString(), the readBufferLine() erase returned line from the buffer only if full line was returned.
+ * </p>
+ * 
+ * <p>See the following scenario to understand better how it works:
+ * <or>
+ * <li>SSH appends the buffer with "/local/msidor #"</li>
+ * <li>Call of readBufferLine() returns "/local/msidor #"</li>
+ * <li>SSH appends the buffer with " ls"</li> 
+ * <li>Call of readBufferLine() returns "/local/msidor # ls"</li>
+ * <li>SSH appends the buffer with "\n"</li> 
+ * <li>Call of readBufferLine() returns "/local/msidor # ls\n"</li>
+ * <li>SSH appends the buffer with "foo.txt\n"</li> 
+ * <li>Call of readBufferLine() returns "foo.txt\n"</li>
+ * <li>SSH appends the buffer with "/local/msidor #"</li>
+ * <li>Call of readBufferLine() returns "/local/msidor #"</li>
+ * </or>
+ * </p>
+ * 
+ *  <p>This way you may develop far much faster scripts but you have to be careful though. For instance you have to implement the timeouts by yourself.</p> 
+ *
+ <code>
+ * 
+ * outputCheck = false;
+ * lastUpdate=System.currentTimeMillis();
+ * while (System.currentTimeMillis()-lastUpdate<15000 && !outputCheck)
+ * {
+ * 
+ *     if((outputLine = cmd.readBufferLine()) != null)
+ *     {
+ *         if(outputLine.endsWith("\n"))
+ *             print outputLine;
+ *         
+ *         if(outputLine.endsWith("\$ "))
+ *             outputCheck = true;
+ *     }   
+ * }
+ * 
+ * if(outputCheck)
+ *     cmd.sendCommand("ls\n");
+ * else
+ *     throw new Exception ("Could not execute LS");           
+ *     
+ * outputCheck = false;    
+ * while (System.currentTimeMillis()-lastUpdate<15000 && !outputCheck)
+ * {
+ * 
+ *     if((outputLine = cmd.readBufferLine()) != null)
+ *     {
+ *         if(outputLine.endsWith("\n"))
+ *             print outputLine;
+ *         
+ *         if(outputLine.endsWith("\$ "))
+ *             outputCheck = true;
+ *     }   
+ * }             
+ *  </code> 
  */
 public class Command
 {
@@ -163,31 +280,88 @@ public class Command
     }
     
     /**
-     * Calls readBufferLine with default outputTimeOut
-     * @return result of readBufferLine with default outputTimeOut
+     * Reads the line from the buffer. 
+     * There are two possible cases: 
+     * <or>
+     * <li>returns the line from the buffer immediately if the full line is available</li>
+     * <li>returns anything what is in the buffer</li>
+     * </or>
+     * This command will not block. 
+     * The main difference between this method and readBufferString() is the fact that returned content is erased from the buffer only if full line was returned.
+     * See the following scenario to understand better how it works:
+     * <or>
+     * <li>SSH appends the buffer with "/local/msidor #"</li>
+     * <li>Call of readBufferLine() returns "/local/msidor #"</li>
+     * <li>SSH appends the buffer with " ls"</li> 
+     * <li>Call of readBufferLine() returns "/local/msidor # ls"</li>
+     * <li>SSH appends the buffer with "\n"</li> 
+     * <li>Call of readBufferLine() returns "/local/msidor # ls\n"</li>
+     * <li>SSH appends the buffer with "foo.txt\n"</li> 
+     * <li>Call of readBufferLine() returns "foo.txt\n"</li>
+     * <li>SSH appends the buffer with "/local/msidor #"</li>
+     * <li>Call of readBufferLine() returns "/local/msidor #"</li>
+     * </or>
+     * @return <or>
+     * <li>the line from the buffer immediately if the full line is available</li>
+     * <li>null if nothing is no complete line is yet available</li>
+     * </or>
      */
     public String readBufferLine()
     {
-        return readBufferLine(outputTimeOut);
+        
+        //wait until the full line is available or until the the buffer is not updated for more than the value specified in commandOutputTimeOut.
+        int index = commandOutput.indexOf("\n");
+        
+        //return if anything was found
+        if(index>=0)
+        {
+            index++;
+            String result = commandOutput.substring(0,index);
+            commandOutput.delete(0,index);
+            return result;  
+        }
+        else
+        {
+            index = commandOutput.length();
+            if(index>0)
+            {
+                String result = commandOutput.substring(0,index);            
+                return result;
+            }
+        }
+        
+        return null;
+                
+    }    
+    
+    
+    /**
+     * Calls readBufferString with default outputTimeOut
+     * @return result of readBufferString with default outputTimeOut
+     */
+    public String readBufferString()
+    {
+        return readBufferString(outputTimeOut);
     }
     
     /**
      * Reads the line from the buffer. 
      * There are two possible cases: 
      * <or>
-     * <li>return the line from the buffer immediately if the full line is available</li>
-     * <li>return anything what is in the buffer after the buffer was not updated for more than the value specified in commandOutputTimeOut</li>
+     * <li>returns the line from the buffer immediately if the full line is available</li>
+     * <li>returns anything what is in the buffer after the buffer was not updated for more than the value specified in commandOutputTimeOut</li>
      * </or>
      * That means that the command may block until the full line is available or until the the buffer is not updated for more than the value specified in commandOutputTimeOut. 
+     * The returned content is erased from the buffer.
      * 
      * @param commandOutputTimeOut - the max timeout in milliseconds for which the command may block if no full line is present in buffer and no updates were made.
-     * set the negative value in order to disable the timeOut.
+     * Set the negative value in order to disable the timeOut.
      * @return <or>
      * <li>the line from the buffer immediately if the full line is available</li>
      * <li>anything what is in the buffer after the buffer was not updated for more than the value specified in commandOutputTimeOut</li>
      * </or>
      */
-    public String readBufferLine(int commandOutputTimeOut)
+    public String readBufferString(int commandOutputTimeOut)
     {
     	//if no update to buffer were made since last null-return method execution, the timeout will count since now. 
         if(getLastUpdate()==-1)
@@ -197,13 +371,14 @@ public class Command
         int index = 0;        
         while((index = commandOutput.indexOf("\n"))<0 && (System.currentTimeMillis()-getLastUpdate()<commandOutputTimeOut || commandOutputTimeOut<0)  );
         
-        if(index<=0)
-            index = commandOutput.length()-1;
+        if(index<0 && commandOutput.length()>0)
+            index = commandOutput.length();
+        else if(index>=0)
+            index++;
         
         //return if anything was found
         if(index>0)
         {
-            index++;
             String result = commandOutput.substring(0,index);
             commandOutput.delete(0,index);
             return result;  
@@ -227,6 +402,7 @@ public class Command
     /**
      * Reads the character from the buffer is one is available. 
      * If not, this method will block until a character is available or until the timeOut specified in commandOutputTimeOut variable. 
+     * The returned content is erased from the buffer.
      * 
      * @param commandOutputTimeOut timeOut for which this method will block. Set negative value in order to disable the timeout.
      * @return character from the buffer.

@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.jcraft.jsch.Channel;
+import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
@@ -94,6 +95,32 @@ public class SSHManager
 	 * Command time out. See @see {@link Command} for more informations about what does it means exactly
 	 */
 	private int        cmdTimeOut;
+	
+	/**
+	 * Terminal type
+	 */
+    private String     ptyType = null;
+    
+    /**
+     * Terminal width, columns
+     */
+    private int         col=0;
+    
+    /**
+     * Terminal height, rows
+     */
+    private int         row=0;
+    
+    /**
+     * Terminal width, pixels
+     */
+    private int         wp=0;
+    
+    /**
+     * Terminal height, pixel
+     */
+    private int         hp=0;
+
 
 
 	/**
@@ -108,7 +135,7 @@ public class SSHManager
 	 * @param cmdTimeOutMilliseconds - Command time out. See @see {@link Command} for more informations about what does it means exactly
 	 * @throws JSchException
 	 */
-	public SSHManager(String userName, String password, String connectionIP, String knownHostsFileName, int connectionPort, int contimeOutMilliseconds, int cmdTimeOutMilliseconds) throws JSchException
+	public SSHManager(String userName, String password, String connectionIP, String knownHostsFileName, int connectionPort, int contimeOutMilliseconds, int cmdTimeOutMilliseconds,String ptyType,int col,int row,int wp,int hp) throws JSchException
 	{
         sSHChannel = new JSch();
 
@@ -123,6 +150,13 @@ public class SSHManager
         this.connectionPort = connectionPort;
         this.conTimeOut = contimeOutMilliseconds;
         this.cmdTimeOut = cmdTimeOutMilliseconds;
+
+        this.ptyType = ptyType;
+        this.col=col;
+        this.row=row;
+        this.hp=hp;       
+        this.wp=wp;
+        
 	}
 
 	/**
@@ -186,6 +220,15 @@ public class SSHManager
 		{
 			//open the channel
 			channel = sSHSession.openChannel(channelName);
+			
+			//set pty only if one has been given
+			if(ptyType!=null)
+			    ((ChannelShell)channel).setPtyType(ptyType);
+			
+			//set terminal size only if all has been defined
+			if(col>0 && row>0 && wp>0 && hp>0)
+			    ((ChannelShell)channel).setPtySize( col, row, wp, hp );
+						
 			channel.setInputStream(is);
 			channel.setOutputStream(os);
 			channel.connect(1000);
@@ -242,6 +285,7 @@ public class SSHManager
 	{
 		sSHSession.disconnect();
 	}
+
 
 
 

@@ -166,7 +166,9 @@ public class SSHManager
 	public void connect() throws JSchException
 	{
 		sSHSession = sSHChannel.getSession(userName, connectionIP, connectionPort);
+		sSHSession.setConfig("PreferredAuthentications","publickey,keyboard-interactive,password");
 		sSHSession.setPassword(password);
+		sSHSession.setUserInfo(new SSHUserInfo());
 		sSHSession.connect(conTimeOut);
 	}
 	
